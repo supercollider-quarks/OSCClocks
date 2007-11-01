@@ -218,14 +218,16 @@ OSCClockReceiver
   clear {
 	internalClock.clear;
   }
-
+	
   seconds {
 	if (state == \running,
 	  {
 		^(currentRemoteTime + (internalClock.seconds - currentSystemTime));
-	  });
-
-	^nil;
+	  },
+	  {
+		0;
+	  }
+	);
   }
 }
 
