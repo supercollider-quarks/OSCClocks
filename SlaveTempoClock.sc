@@ -1,6 +1,19 @@
 /**
-	A TempoClock-like clock that uses another clock 
-	(e.g. OSCClockReceiver) as timing source..
+  A TempoClock-like clock that uses another clock 
+  (e.g. OSCClockReceiver) as timing source and provides
+  a TempoClock like interface on top of it. This can be used in
+  conjunction with the OSCClockSender and OSCClockReceiver classes.
+  
+  // Create an OSCClockReceiver instance
+  ~clockReceiver = OSCClockReceiver.new
+
+  // Send some clock signal to it:
+  OSCClockSender.default.targets = [NetAddr("localhost", 57120)]
+
+  // Create a SlaveTempoClock using the receiver:
+  ~slaveClock = SlaveTempoClock.new(~clockReceiver);
+
+  // Do some Pbind fun with this clock
 */
 SlaveTempoClock
 {
