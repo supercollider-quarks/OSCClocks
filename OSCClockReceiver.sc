@@ -1,3 +1,17 @@
+/**
+  OSCClockReceiver objects can be used to receive a clock signal sent 
+  by an OSCClockSender object.
+
+  // create a new OSCClockReceiver object:
+  ~clockReceiver = OSCClockReceiver.new
+ 
+  // create a new OSCClockReceiver object with filter coefficient 0.1,
+  // OSC base path "/foobar" and a message timeout of 1 sec.
+  ~clockReceiver = OSCClockReceiver.new(w: 0.1, path: "/foobar", timout: 1)
+
+  // Make the receiver a bit more verbose:
+  ~clockReceiver.verbose = true
+*/
 OSCClockReceiver
 {
   var
@@ -6,6 +20,7 @@ OSCClockReceiver
   state,
   path,
 
+  // The state needed for our locked loop
   currentRemoteTime,
   currentSystemTime,
   nextSystemTime,
@@ -15,33 +30,49 @@ OSCClockReceiver
 
   accumTime,
   <>verbose = false,
-  <>verboseTime = 5;
+  <>verboseTime = 5,
+
+  <>timeout,
+  timeoutTime = 0;
   
   *new
   {
 	arg
+	/**
+	  The filter coefficient for the locked loop
+	*/
 	argW = 0.01,
-	argPath = "/OSCClocks";
+	/**
+	  The OSC path were to listen for time messages
+	*/
+	argPath = "/OSCClocks",
+	/**
+	  The timeout when to stop scheduling after the last
+	  message has been sent
+	*/
+	argTimeout = 5;
 
-	^super.new.init(argW, argPath);
+	^super.new.init(argW, argPath, argTimeout);
   }
   
   init
   {
 	arg
 	argW,
-	argPath;
+	argPath,
+	argTimeout;
 
 	// "[ClockReceiver]: Init...".postln;
 
 	w = argW;
 	path = argPath;
+	timeout = argTimeout;
 
 	internalClock = SystemClock;
 
 	this.reset;
 
-	timeResponder = OSCresponder.new(
+	timeResponder = OSCresponderNode.new(
 	  nil,
 	  path ++ "/time", 
 	  {
@@ -55,15 +86,28 @@ OSCClockReceiver
 		this.timeCallback(time, resp, msg, addr)
 	  }
 	).add;
+
+	internalClock.schedAbs(internalClock.seconds + 0.5,
+	  {
+		if (state == \running,
+		  {
+			timeoutTime = timeoutTime + 0.5;
+			if (timeoutTime > timeout,
+			  {
+				if (verbose == true, {"[OSCClockReceiver]: Timed out waiting for messages. Resetting...".postln; });
+				this.reset;
+			  }
+			);
+		  }
+		);
+		0.5;
+	  }
+	);
   }
 
   reset
   {
-	if (verbose == true,
-	  {
-		"[OSCClockReceiver]: resetting...".postln;
-	  }
-	);
+	if (verbose == true, {"[OSCClockReceiver]: resetting...".postln; });
 
 	accumTime = 0;
 
@@ -73,6 +117,8 @@ OSCClockReceiver
 	currentRemoteTime = 0;
 	currentSystemTime = 0;
 	nextSystemTime = 0;
+
+	timeoutTime = 0;
 
 	state = \stopped;
   }
@@ -95,13 +141,12 @@ OSCClockReceiver
 	remoteTime = message[1].asFloat;
 	periodTime = 1.0/message[2];
 
+	// reset watchdog
+	timeoutTime = 0;
+
 	if (firstTime,
 	  {
-		if (verbose == true,
-		  {
-			"[OSCClockReceiver]: Receiving time messages...".postln;
-		  }
-		);
+		if (verbose == true, {"[OSCClockReceiver]: Receiving time messages...".postln; });
 
 		state = \running;
 		accumTime = 0;
@@ -132,18 +177,14 @@ OSCClockReceiver
 	
 	if (currentRemoteTime > remoteTime,
 	  {
-		if (verbose == true,
-		  {
-			"[OSCClockReceiver]: Sync messages out of order. Resyncing...".postln;
-		  }
-		);
+		if (verbose == true, {"[OSCClockReceiver]: Sync messages out of order. Resyncing...".postln; });
 
 		this.reset;
-
-		^nil;
-	  });
-	
-	currentRemoteTime = remoteTime;
+	  },
+	  {
+		currentRemoteTime = remoteTime;
+	  }
+	);
   }
 
   sched {

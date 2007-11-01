@@ -1,7 +1,24 @@
 
 /**
-  We don't inherit any particular clock for flexibility reasons.. This way 
-  we can "hook" onto any clock that allows scheduling
+  The OSCClockSender Class can be used to send a clock like SystemClock
+  over the network.
+  
+  // Set the targets of the default ClockSender:
+  OSCClockSender.default.targets = [NetAddr("localhost", 57120)]
+
+  // Set the clock to be sent. The default is SystemClock anyways:
+  OSCClockSender.default.setClock(SystemClock)
+
+  // Start sending of clock messages:
+  OSCClockSender.default.start
+
+  // Erm, yep - stop sending :)
+  OSCClockSender.default.stop
+
+  // Set the sender to be a bit more verbose than usual:
+  OSCClockSender.default.verbose = true
+
+  see OSCClockReceiver for the counterpart of this class.
 */
 OSCClockSender
 {
@@ -104,12 +121,12 @@ OSCClockSender
   {
 	if (state == \running, 
 	  {
-		"[OSCClockSender]: already running....".postln;
+		if (verbose == true, {"[OSCClockSender]: already running....".postln;});
 		^this;
 	  }
 	);
 
-	"[OSCClockSender]: starting to send clock signal".postln;
+	if (verbose == true, {"[OSCClockSender]: starting to send clock signal".postln;});
 
 	accumTime = 0;
 
@@ -167,11 +184,7 @@ OSCClockSender
   */
   stop
   {
-	if (verbose == true,
-	  {
-		"[OSCClockSender]: stopping..".postln;
-	  }
-	);
+	if (verbose == true, {"[OSCClockSender]: stopping..".postln; });
 
 	state = \stopped;
   }
