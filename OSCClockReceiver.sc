@@ -2,34 +2,40 @@ OSCClockReceiver
 {
   var
   internalClock,
-  syncResponder, 
   timeResponder, 
-  state, 
+  state,
+  path,
+
   currentRemoteTime,
   currentSystemTime,
   nextSystemTime,
   firstTime,
   z,
   <>w,
+
   accumTime,
-  <>verbose = false;
+  <>verbose = false,
+  <>verboseTime = 5;
   
   *new
   {
 	arg
-	argW = 0.01;
+	argW = 0.01,
+	argPath = "/OSCClocks";
 
-	^super.new.init(argW);
+	^super.new.init(argW, argPath);
   }
   
   init
   {
 	arg
-	argW;
+	argW,
+	argPath;
 
-	"[ClockReceiver]: Init...".postln;
+	// "[ClockReceiver]: Init...".postln;
 
 	w = argW;
+	path = argPath;
 
 	internalClock = SystemClock;
 
@@ -37,10 +43,15 @@ OSCClockReceiver
 
 	timeResponder = OSCresponder.new(
 	  nil,
-	  "/clock_sync/time", 
+	  path ++ "/time", 
 	  {
-		|time, resp, msg, addr| 
-		//"[ClockReceiver]: action...".postln;
+		arg
+		time, 
+		resp, 
+		msg, 
+		addr;
+ 
+		//"[OSCClockReceiver]: action...".postln;
 		this.timeCallback(time, resp, msg, addr)
 	  }
 	).add;
@@ -48,15 +59,21 @@ OSCClockReceiver
 
   reset
   {
-	"[ClockReceiver]: reset...".postln;
+	if (verbose == true,
+	  {
+		"[OSCClockReceiver]: resetting...".postln;
+	  }
+	);
 
-	// internalClock.clear;
 	accumTime = 0;
+
 	firstTime = true;
+
 	z = 0.0;
 	currentRemoteTime = 0;
 	currentSystemTime = 0;
 	nextSystemTime = 0;
+
 	state = \stopped;
   }
 
@@ -73,14 +90,19 @@ OSCClockReceiver
 	d;
 
 
-	//"[ClockReceiver]: timeCallback".postln;
+	//"[OSCClockReceiver]: timeCallback".postln;
 
 	remoteTime = message[1].asFloat;
 	periodTime = 1.0/message[2];
 
 	if (firstTime,
 	  {
-		//"[ClockReceiver]: firstTime == true".postln;
+		if (verbose == true,
+		  {
+			"[OSCClockReceiver]: Receiving time messages...".postln;
+		  }
+		);
+
 		state = \running;
 		accumTime = 0;
 		firstTime = false;
@@ -91,29 +113,33 @@ OSCClockReceiver
 		^nil;
 	  },
 	  {
-		//"[ClockReceiver]: firstTime == false".postln;
+		//"[OSCClockReceiver]: firstTime == false".postln;
 		d = (internalClock.seconds) - nextSystemTime;
 		z = z + (w * (d - z));
 		currentSystemTime = nextSystemTime;
 		nextSystemTime = nextSystemTime + z + periodTime;
 
-		if (verbose == true,
+		accumTime = accumTime + periodTime;
+		if ((accumTime > verboseTime).and(verbose == true),
 		  {
-			accumTime = accumTime + periodTime;
-			if (accumTime > 1,
-			  {
-				("[ClockReceiver]: z: " ++ z ++ " d: " ++ d ++ " message: " ++ message).postln;
-				accumTime = 0;
-			  });
-		  });
-
-	  });
-
+			("[OSCClockReceiver]: z: " ++ z ++ " d: " ++ d ++ " message: " ++ message).postln;
+			accumTime = 0;
+		  }
+		);
+	  }
+	);
+	
+	
 	if (currentRemoteTime > remoteTime,
 	  {
-		"[ClockReceiver]: Sync messages out of order. Resyncing...".postln;
-		firstTime = true;
+		if (verbose == true,
+		  {
+			"[OSCClockReceiver]: Sync messages out of order. Resyncing...".postln;
+		  }
+		);
+
 		this.reset;
+
 		^nil;
 	  });
 	
@@ -130,7 +156,7 @@ OSCClockReceiver
 	arg time, function;
 
 	if (state != \running, {
-	  "[ClockReceiver]: not RUNNING. Start clock sender on remote end..".postln;
+	  "[OSCClockReceiver]: not RUNNING. Start clock sender on remote end..".postln;
 	  ^nil;
 	});
 	internalClock.sched(time - this.seconds, {
